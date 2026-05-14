@@ -1,0 +1,3 @@
+cd C:\Samperio\Claude\Archon-Talent-Detect\talent-radar
+npm run dev
+
