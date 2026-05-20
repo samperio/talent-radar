@@ -9,13 +9,19 @@
 
 ```bash
 cd C:\Samperio\Claude\Archon-Talent-Detect\talent-radar
-npm run dev          # → http://localhost:5173
-npm run build        # build de producción → /dist
+npm run start        # inicia servidor API + frontend en paralelo
 ```
 
+- Frontend: `http://localhost:5173`
+- API local: `http://localhost:3001/api`
 - **Admin password:** `admin2024`
-- **Clave candidato:** formato `TLR-XXXX` (generada automáticamente al crear el candidato)
-- **Repo:** https://github.com/samperio/talent-radar
+- **Clave candidato:** formato `TLR-XXXX` (generada automáticamente)
+- **Datos:** `talent-radar-data.json` en la raíz del proyecto (JSON, editable)
+
+Scripts disponibles:
+- `npm run start` — servidor + frontend juntos (uso normal)
+- `npm run server` — solo el servidor API
+- `npm run dev` — solo el frontend (requiere servidor corriendo aparte)
 
 ---
 
@@ -40,7 +46,7 @@ npm run build        # build de producción → /dist
 ## Arquitectura en una línea
 
 ```
-100% frontend · localStorage · sin backend · dos roles (Admin / Candidato)
+React SPA + Express local · JSON file DB · sin cloud · dos roles (Admin / Candidato)
 ```
 
 ### Roles y rutas
@@ -123,13 +129,17 @@ EvaluationResult  // domainScores[], overallScore, matchScore,
 
 | Clave | Contenido |
 |---|---|
-| `talent-radar:config` | `AppConfig` — password, orgName, activeProfileId |
-| `talent-radar:domains` | `Domain[]` — seed data cargado la primera vez |
-| `talent-radar:profiles` | `IdealProfile[]` |
-| `talent-radar:candidates` | `Candidate[]` — incluye evaluationResult completo |
-| `talent-radar:session:{id}` | `Answer[]` — respuestas parciales del candidato activo |
+| Clave JSON | Contenido |
+|---|---|
+| `config` | `AppConfig` — password, orgName, activeProfileId |
+| `profiles` | `IdealProfile[]` |
+| `candidates` | `Candidate[]` — incluye `evaluationResult` al completar |
+| `sessions` | `{ [candidateId]: Answer[] }` — respuestas parciales |
 
-> Para resetear la app a estado inicial: borrar todas las claves `talent-radar:*` en DevTools → Application → Local Storage.
+Todo en `talent-radar-data.json` en la raíz del proyecto.
+Dominios y preguntas: en código (`src/data/SEED_DATA.ts`).
+
+> Para resetear: borrar `talent-radar-data.json` y reiniciar el servidor.
 
 ---
 
@@ -239,9 +249,9 @@ python "C:\Samperio\Claude\Archon-Talent-Detect\generate_docs.py"
 - [x] Radar chart con perfil ideal + candidatos superpuestos
 - [x] Algoritmo de scoring con match score ponderado
 - [x] Exportación JSON y CSV
-- [x] Guardado automático de evaluación parcial
+- [x] Guardado automático de evaluación parcial (sessions en Supabase)
+- [x] BD centralizada Supabase — resultados visibles para el admin en tiempo real
 - [x] Manuales de usuario y técnico en Word
 - [ ] Dark mode (planificado v2)
-- [ ] Code splitting para reducir bundle (~660 KB sin split)
-- [ ] Backend para persistencia compartida entre equipos
-- [ ] Autenticación persistente del admin (con backend)
+- [ ] Code splitting para reducir bundle
+- [ ] Autenticación persistente del admin (Supabase Auth)

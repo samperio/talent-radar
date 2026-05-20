@@ -1,86 +1,32 @@
-import type { Answer, AppConfig, Candidate, Domain, IdealProfile } from '../types';
-import { STORAGE_KEYS, DEFAULT_CONFIG } from '../config';
-import { SEED_DOMAINS, DEFAULT_IDEAL_PROFILE } from '../data/SEED_DATA';
+import type { Candidate } from '../types';
 
-function safeGet<T>(key: string, fallback: T): T {
+type CandidateTokenPayload = Pick<Candidate, 'id' | 'name' | 'accessKey' | 'targetLevel' | 'status' | 'createdAt'> & { email?: string };
+
+export function generateCandidateToken(candidate: CandidateTokenPayload): string {
   try {
-    const raw = localStorage.getItem(key);
-    if (!raw) return fallback;
-    return JSON.parse(raw) as T;
+    const payload: CandidateTokenPayload = {
+      id: candidate.id,
+      name: candidate.name,
+      email: candidate.email,
+      accessKey: candidate.accessKey,
+      targetLevel: candidate.targetLevel,
+      status: candidate.status,
+      createdAt: candidate.createdAt,
+    };
+    const json = JSON.stringify(payload);
+    const bytes = new TextEncoder().encode(json);
+    return btoa(Array.from(bytes, (b) => String.fromCharCode(b)).join(''));
   } catch {
-    return fallback;
+    return '';
   }
 }
 
-function safeSet(key: string, value: unknown): void {
+export function decodeCandidateToken(token: string): Partial<Candidate> | null {
   try {
-    localStorage.setItem(key, JSON.stringify(value));
-  } catch (e) {
-    console.error('localStorage write failed:', e);
-    alert('Error al guardar datos. Verifica el almacenamiento del navegador.');
-  }
-}
-
-export function loadConfig(): AppConfig {
-  return safeGet(STORAGE_KEYS.CONFIG, DEFAULT_CONFIG);
-}
-
-export function saveConfig(config: AppConfig): void {
-  safeSet(STORAGE_KEYS.CONFIG, config);
-}
-
-export function loadDomains(): Domain[] {
-  return safeGet(STORAGE_KEYS.DOMAINS, SEED_DOMAINS);
-}
-
-export function saveDomains(domains: Domain[]): void {
-  safeSet(STORAGE_KEYS.DOMAINS, domains);
-}
-
-export function loadProfiles(): IdealProfile[] {
-  return safeGet(STORAGE_KEYS.PROFILES, [DEFAULT_IDEAL_PROFILE]);
-}
-
-export function saveProfiles(profiles: IdealProfile[]): void {
-  safeSet(STORAGE_KEYS.PROFILES, profiles);
-}
-
-export function loadCandidates(): Candidate[] {
-  return safeGet(STORAGE_KEYS.CANDIDATES, []);
-}
-
-export function saveCandidates(candidates: Candidate[]): void {
-  safeSet(STORAGE_KEYS.CANDIDATES, candidates);
-}
-
-export function loadSession(candidateId: string): Answer[] {
-  return safeGet(STORAGE_KEYS.SESSION(candidateId), []);
-}
-
-export function saveSession(candidateId: string, answers: Answer[]): void {
-  safeSet(STORAGE_KEYS.SESSION(candidateId), answers);
-}
-
-export function clearSession(candidateId: string): void {
-  try {
-    localStorage.removeItem(STORAGE_KEYS.SESSION(candidateId));
+    const bytes = Uint8Array.from(atob(token), (c) => c.charCodeAt(0));
+    return JSON.parse(new TextDecoder().decode(bytes)) as Partial<Candidate>;
   } catch {
-    // ignore
-  }
-}
-
-export function initializeStorage(): void {
-  if (!localStorage.getItem(STORAGE_KEYS.CONFIG)) {
-    safeSet(STORAGE_KEYS.CONFIG, DEFAULT_CONFIG);
-  }
-  if (!localStorage.getItem(STORAGE_KEYS.DOMAINS)) {
-    safeSet(STORAGE_KEYS.DOMAINS, SEED_DOMAINS);
-  }
-  if (!localStorage.getItem(STORAGE_KEYS.PROFILES)) {
-    safeSet(STORAGE_KEYS.PROFILES, [DEFAULT_IDEAL_PROFILE]);
-  }
-  if (!localStorage.getItem(STORAGE_KEYS.CANDIDATES)) {
-    safeSet(STORAGE_KEYS.CANDIDATES, []);
+    return null;
   }
 }
 

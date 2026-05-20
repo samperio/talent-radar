@@ -2,7 +2,7 @@ import { useState, useEffect, useCallback, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { ChevronLeft, ChevronRight, Send } from 'lucide-react';
 import { useAppStore } from '../../store/useAppStore';
-import { loadSession, saveSession, clearSession } from '../../services/StorageService';
+import { loadSession, saveSession } from '../../services/DataService';
 import { Button } from '../../components/ui/button';
 import { Dialog, DialogHeader, DialogBody, DialogFooter } from '../../components/ui/dialog';
 import type { Answer, Domain, Question } from '../../types';
@@ -26,26 +26,29 @@ export function Evaluation() {
   const allQuestions = useMemo(() => buildQuestionList(domains), [domains]);
   const total = allQuestions.length;
 
-  const [step, setStep] = useState<'intro' | 'quiz' | 'done'>('intro');
+  const [step, setStep] = useState<'intro' | 'quiz'>('intro');
   const [current, setCurrent] = useState(0);
   const [answers, setAnswers] = useState<Answer[]>([]);
   const [selectedOption, setSelectedOption] = useState<number | null>(null);
   const [showConfirm, setShowConfirm] = useState(false);
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [submitError, setSubmitError] = useState('');
 
-  // Load session on mount
+  // Load partial session from Supabase on mount
   useEffect(() => {
     if (!currentCandidate) {
       navigate('/candidate/login');
       return;
     }
-    const saved = loadSession(currentCandidate.id);
-    if (saved.length > 0) {
-      setAnswers(saved);
-      const lastAnswered = saved.length;
-      setCurrent(Math.min(lastAnswered, total - 1));
-      setStep('quiz');
-    }
-  }, [currentCandidate, navigate, total]);
+    loadSession(currentCandidate.id).then((saved) => {
+      if (saved.length > 0) {
+        setAnswers(saved);
+        setCurrent(Math.min(saved.length, total - 1));
+        setStep('quiz');
+      }
+    });
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [currentCandidate?.id]);
 
   // Restore selection for current question
   useEffect(() => {
@@ -55,12 +58,12 @@ export function Evaluation() {
     setSelectedOption(existing ? (existing.value as number) : null);
   }, [current, answers, allQuestions]);
 
-  // Autosave every 3 questions
+  // Autosave every 3 questions (fire-and-forget)
   const autosave = useCallback(
     (updatedAnswers: Answer[]) => {
       if (!currentCandidate) return;
       if (updatedAnswers.length % 3 === 0) {
-        saveSession(currentCandidate.id, updatedAnswers);
+        saveSession(currentCandidate.id, updatedAnswers).catch(console.error);
       }
     },
     [currentCandidate]
@@ -73,7 +76,7 @@ export function Evaluation() {
   const progress = Math.round((answered / total) * 100);
 
   const handleSelect = (optionIdx: number) => {
-    setSelectedOption(optionIdx + 1); // 1-indexed
+    setSelectedOption(optionIdx + 1);
   };
 
   const handleNext = () => {
@@ -104,8 +107,7 @@ export function Evaluation() {
     if (current > 0) setCurrent((c) => c - 1);
   };
 
-  const handleSubmit = () => {
-    // Include current answer if not saved
+  const handleSubmit = async () => {
     let finalAnswers = [...answers];
     if (selectedOption !== null) {
       const q = allQuestions[current];
@@ -118,10 +120,17 @@ export function Evaluation() {
       };
       finalAnswers = [...answers.filter((a) => a.questionId !== q.question.id), newAnswer];
     }
-    completeEvaluation(currentCandidate.id, finalAnswers);
-    clearSession(currentCandidate.id);
-    logoutCandidate();
-    navigate('/candidate/done');
+
+    setIsSubmitting(true);
+    setSubmitError('');
+    try {
+      await completeEvaluation(currentCandidate.id, finalAnswers);
+      logoutCandidate();
+      navigate('/candidate/done');
+    } catch {
+      setSubmitError('Error al guardar la evaluación. Verifica tu conexión e intenta de nuevo.');
+      setIsSubmitting(false);
+    }
   };
 
   const isLastQuestion = current === total - 1;
@@ -201,7 +210,6 @@ export function Evaluation() {
           {q.question.text}
         </h2>
 
-        {/* Options */}
         <div className="space-y-3">
           {q.question.options?.map((option, idx) => {
             const isSelected = selectedOption === idx + 1;
@@ -267,8 +275,8 @@ export function Evaluation() {
       </div>
 
       {/* Confirm submit */}
-      <Dialog open={showConfirm} onClose={() => setShowConfirm(false)}>
-        <DialogHeader onClose={() => setShowConfirm(false)}>
+      <Dialog open={showConfirm} onClose={() => !isSubmitting && setShowConfirm(false)}>
+        <DialogHeader onClose={() => !isSubmitting && setShowConfirm(false)}>
           Confirmar envío
         </DialogHeader>
         <DialogBody>
@@ -280,13 +288,29 @@ export function Evaluation() {
             Respondidas: <strong>{answers.length + (selectedOption !== null ? 1 : 0)}</strong> de{' '}
             <strong>{total}</strong>
           </p>
+          {submitError && (
+            <p className="mt-3 rounded-lg bg-red-50 px-3 py-2 text-sm text-red-700">
+              {submitError}
+            </p>
+          )}
         </DialogBody>
         <DialogFooter>
-          <Button variant="outline" onClick={() => setShowConfirm(false)}>
+          <Button variant="outline" onClick={() => setShowConfirm(false)} disabled={isSubmitting}>
             Cancelar
           </Button>
-          <Button onClick={handleSubmit} className="bg-green-600 hover:bg-green-700 gap-2">
-            <Send size={14} /> Enviar ahora
+          <Button
+            onClick={handleSubmit}
+            disabled={isSubmitting}
+            className="bg-green-600 hover:bg-green-700 gap-2"
+          >
+            {isSubmitting ? (
+              <>
+                <span className="h-4 w-4 animate-spin rounded-full border-2 border-white border-t-transparent" />
+                Guardando...
+              </>
+            ) : (
+              <><Send size={14} /> Enviar ahora</>
+            )}
           </Button>
         </DialogFooter>
       </Dialog>

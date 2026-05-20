@@ -18,11 +18,44 @@ import { Evaluation } from './pages/candidate/Evaluation';
 import { Done } from './pages/candidate/Done';
 
 export default function App() {
-  const { initialize } = useAppStore();
+  const { initialize, isLoading, dbError } = useAppStore();
 
   useEffect(() => {
     initialize();
   }, [initialize]);
+
+  if (dbError) {
+    return (
+      <div className="flex min-h-screen items-center justify-center bg-slate-950 p-6">
+        <div className="max-w-md rounded-xl border border-red-500/30 bg-slate-900 p-6">
+          <h1 className="mb-2 text-lg font-bold text-red-400">Servidor no disponible</h1>
+          <p className="mb-4 text-sm text-slate-300">
+            No se pudo conectar al servidor local. Asegúrate de que esté corriendo:
+          </p>
+          <pre className="mb-4 rounded-lg bg-slate-800 px-4 py-3 text-sm text-emerald-400">
+            npm run start
+          </pre>
+          <button
+            onClick={() => initialize()}
+            className="rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700"
+          >
+            Reintentar conexión
+          </button>
+        </div>
+      </div>
+    );
+  }
+
+  if (isLoading) {
+    return (
+      <div className="flex min-h-screen items-center justify-center bg-gray-50">
+        <div className="flex flex-col items-center gap-3">
+          <div className="h-8 w-8 animate-spin rounded-full border-4 border-indigo-600 border-t-transparent" />
+          <p className="text-sm text-gray-500">Cargando datos...</p>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <BrowserRouter>

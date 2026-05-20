@@ -1,6 +1,7 @@
 import { useState } from 'react';
-import { Plus, Copy, RefreshCw, Trash2, Check } from 'lucide-react';
+import { Plus, Copy, RefreshCw, Trash2, Check, Link2 } from 'lucide-react';
 import { useAppStore } from '../../store/useAppStore';
+import { generateCandidateToken } from '../../services/StorageService';
 import { Button } from '../../components/ui/button';
 import { Input } from '../../components/ui/input';
 import { Badge } from '../../components/ui/badge';
@@ -36,16 +37,23 @@ export function CandidatesPage() {
   const [email, setEmail] = useState('');
   const [level, setLevel] = useState<Candidate['targetLevel']>('senior');
   const [copiedKey, setCopiedKey] = useState<string | null>(null);
-  const [newCandidateKey, setNewCandidateKey] = useState<string | null>(null);
+  const [copiedLink, setCopiedLink] = useState<string | null>(null);
+  const [newCandidateId, setNewCandidateId] = useState<string | null>(null);
+  const newCandidate = newCandidateId ? (candidates.find((c) => c.id === newCandidateId) ?? null) : null;
 
   const handleAdd = () => {
     if (!name.trim()) return;
     const cand = addCandidate({ name: name.trim(), email: email.trim() || undefined, targetLevel: level });
-    setNewCandidateKey(cand.accessKey);
+    setNewCandidateId(cand.id);
     setName('');
     setEmail('');
     setLevel('senior');
     setShowDialog(false);
+  };
+
+  const getShareUrl = (c: Candidate) => {
+    const token = generateCandidateToken(c);
+    return `${window.location.origin}/candidate/login?token=${token}`;
   };
 
   const copyKey = async (key: string) => {
@@ -54,10 +62,17 @@ export function CandidatesPage() {
     setTimeout(() => setCopiedKey(null), 2000);
   };
 
+  const copyLink = async (c: Candidate) => {
+    await navigator.clipboard.writeText(getShareUrl(c));
+    setCopiedLink(c.id);
+    setTimeout(() => setCopiedLink(null), 2000);
+  };
+
   const handleRegenKey = (id: string) => {
-    const newKey = regenerateCandidateKey(id);
+    regenerateCandidateKey(id);
     setCopiedKey(null);
-    setNewCandidateKey(newKey);
+    setCopiedLink(null);
+    setNewCandidateId(id);
   };
 
   return (
@@ -75,27 +90,38 @@ export function CandidatesPage() {
       </div>
 
       {/* Nueva clave banner */}
-      {newCandidateKey && (
-        <div className="mb-4 flex items-center gap-3 rounded-xl border border-green-300 bg-green-50 px-4 py-3">
-          <Check size={16} className="text-green-600" />
-          <p className="text-sm text-green-700">
-            Candidato creado. Clave de acceso:
-          </p>
-          <span className="rounded-md bg-green-100 px-2 py-0.5 font-mono text-sm font-bold text-green-900">
-            {newCandidateKey}
-          </span>
-          <button
-            onClick={() => copyKey(newCandidateKey)}
-            className="ml-auto flex items-center gap-1.5 text-sm text-green-700 hover:text-green-900"
-          >
-            <Copy size={14} /> Copiar
-          </button>
-          <button
-            onClick={() => setNewCandidateKey(null)}
-            className="text-green-500 hover:text-green-700 text-lg leading-none"
-          >
-            ×
-          </button>
+      {newCandidate && (
+        <div className="mb-4 rounded-xl border border-green-300 bg-green-50 px-4 py-3">
+          <div className="flex items-center gap-3">
+            <Check size={16} className="shrink-0 text-green-600" />
+            <p className="text-sm text-green-700">
+              Candidato listo. Comparte el <strong>enlace</strong> para que pueda ingresar desde cualquier equipo:
+            </p>
+            <button
+              onClick={() => setNewCandidateId(null)}
+              className="ml-auto shrink-0 text-green-500 hover:text-green-700 text-lg leading-none"
+            >
+              ×
+            </button>
+          </div>
+          <div className="mt-2 flex flex-wrap items-center gap-2">
+            <span className="rounded bg-green-100 px-2 py-0.5 font-mono text-xs font-semibold text-green-900">
+              {newCandidate.accessKey}
+            </span>
+            <button
+              onClick={() => copyKey(newCandidate.accessKey)}
+              className="flex items-center gap-1 text-xs text-green-700 hover:text-green-900"
+            >
+              <Copy size={12} /> {copiedKey === newCandidate.accessKey ? 'Copiado' : 'Copiar clave'}
+            </button>
+            <span className="text-green-400">|</span>
+            <button
+              onClick={() => copyLink(newCandidate)}
+              className="flex items-center gap-1 text-xs font-medium text-green-700 hover:text-green-900"
+            >
+              <Link2 size={12} /> {copiedLink === newCandidate.id ? '¡Enlace copiado!' : 'Copiar enlace de acceso'}
+            </button>
+          </div>
         </div>
       )}
 
@@ -141,6 +167,17 @@ export function CandidatesPage() {
                           <Check size={14} className="text-green-500" />
                         ) : (
                           <Copy size={14} />
+                        )}
+                      </button>
+                      <button
+                        onClick={() => copyLink(c)}
+                        className="text-gray-400 hover:text-indigo-600"
+                        title="Copiar enlace de acceso (para compartir con el candidato)"
+                      >
+                        {copiedLink === c.id ? (
+                          <Check size={14} className="text-green-500" />
+                        ) : (
+                          <Link2 size={14} />
                         )}
                       </button>
                     </div>
